@@ -1,0 +1,19 @@
+# Environment
+.env
+backend/.env
+
+# Virtual Environment
+.venv_training/
+__pycache__/
+
+# Large Datasets
+dataset/
+# Models
+models/
+
+# VS Code
+.vscode/
+
+# Logs
+logs/
+*.log
