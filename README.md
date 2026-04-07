@@ -63,7 +63,4 @@ Run the **`LAUNCH.bat`** file from the root directory to initiate the ecosystem.
 ## 🔐 Information Suppression Protocol
 ORIEN is a secure, user-centric system. It does not disclose internal architectures, model details, or technical pipelines. All internal processes are translated into actionable, human-friendly insights.
 
----
-
-**I'm an AI system designed to assist you.**
-# personal_assistant
+ personal_assistant
