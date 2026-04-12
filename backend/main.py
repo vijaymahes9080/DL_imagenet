@@ -28,6 +28,7 @@ from memory_manager import memory
 from actions import actions
 from synergy_resolver import resolver
 from api_bridge import bridge as api_bridge
+from use_cases import get_ritual, get_smart_action
 import random
 
 
@@ -205,6 +206,22 @@ Response strategy: Friendly conversation. "Hey! How’s your day going?"
 Action: Ask interesting follow-up questions to keep the flow alive.
 Goal: Maintain a pleasant, natural connection."""
 
+    # ── HUMAN-ASSISTANT LOOP: REPLY DETECTION ───────────────────────────
+    # Detect if the user is replying to a previous ritual suggestion
+    last_sugg = memory.get_last_suggestion()
+    is_acceptance = any(word in query.lower() for word in ["yes", "okay", "sure", "let's do it", "try that", "agree"])
+    is_rejection = any(word in query.lower() for word in ["no", "never", "not now", "don't like", "instead"])
+    
+    suggestion_context = ""
+    if last_sugg and (is_acceptance or is_rejection):
+        ritual_name = last_sugg["data"].get("task", "the ritual")
+        if is_acceptance:
+            suggestion_context = f"INTERACTION ALERT: User ACCEPTED the {ritual_name}. ACKNOWLEDGE this and provide 1 sentence of encouragement to start."
+            memory.clear_suggestion() # Clear after acceptance
+        else:
+            suggestion_context = f"INTERACTION ALERT: User DECLINED the {ritual_name}. ACKNOWLEDGE their choice and suggest a DIFFERENT approach or ask for their preference."
+            memory.clear_suggestion()
+
     # ── CONVERSATIONAL INTELLIGENCE CONSTRAINTS ──────────────────────────
     intelligence_directive = """CONVERSATIONAL RULES:
 - ALWAYS ask at least 1 meaningful follow-up question.
@@ -262,6 +279,25 @@ Goal: Maintain a pleasant, natural connection."""
     predictive_note = f"- Predicted next emotion cluster: {top_emo}."
     persona_directive = f"- Memory Context: User likes {prefs.get('communication_style', 'Friendly')} interaction."
 
+    # ── DAILY LIFE USE CASE: NEURAL RITUALS ──────────────────────────────
+    # Dynamically inject a creative suggestion based on current state
+    ritual_data = get_ritual(emotion)
+    ritual_prompt = f"- Suggested Neural Ritual: {ritual_data['task']} ({ritual_data['desc']})."
+    
+    # Store suggestion if not already in a loop
+    if not suggestion_context:
+        memory.set_suggestion("RITUAL", ritual_data)
+
+    # ── ASSISTANT AS SOLVER: REAL-TIME ASSISTANCE ────────────────────────
+    # If the user's query sounds like a problem statement
+    is_problem = any(k in query.lower() for k in ["problem", "help", "solve", "how to", "stuck", "don't know", "difficult"])
+    solver_directive = ""
+    if is_problem:
+        solver_directive = """SOLVER MODE: ACTIVE
+- Break the problem into 3 VERY SIMPLE steps.
+- Start with: "I hear you. Let's solve this together..."
+- End with an offer to track progress."""
+
     system_prompt = f"""# ORIEN | Advanced Emotionally Intelligent Companion
 
 You are ORIEN, a real-time emotionally intelligent AI companion system.
@@ -280,10 +316,16 @@ ENVIRONMENTAL CONTEXT:
 - History Context: Previous interactions indicate user state trends.
 - {session_insight}
 {predictive_note}
+{suggestion_context}
+{solver_directive}
+
+DAILY LIFE INTERVENTION:
+{ritual_prompt}
 
 CONSTRAINTS:
-- NEVER sound robotic. Stay natural.
+- NEVER sound robotic. Stay natural and human-like.
 - MAX 3 sentences per response. 
+- You MUST occasionally (when appropriate) suggest the Neural Ritual mentioned above as a way to manage the current emotion.
 - ALWAYS end with a meaningful follow-up question.
 - {persona_directive}
 """
@@ -304,7 +346,9 @@ CONSTRAINTS:
     return {
         "status": "ok",
         "message": response,
-        "state": intent
+        "state": intent,
+        "ritual": ritual_data,
+        "smart_action": get_smart_action(emotion)
     }
 
 # ── Compliance Calculation ─────────────────────────────
@@ -462,7 +506,9 @@ async def websocket_endpoint(websocket: WebSocket):
                             "status": "ok",
                             "message": ai_res.get("message", "I'm observing a shift in focus. I'm here for you."),
                             "state": fused["intent"],
-                            "insight": internal_insight
+                            "insight": internal_insight,
+                            "ritual": ai_res.get("ritual"),
+                            "smart_action": ai_res.get("smart_action")
                         }))
 
                 # Log for pattern memory
@@ -498,24 +544,32 @@ async def websocket_endpoint(websocket: WebSocket):
                     data.gesture or "NONE", behavior_state, data.gaze_direction or "Center",
                     focus=data.focus_level, language=data.language or "en-US"
                 )
-                await websocket.send_text(json.dumps({
-                    "status": "ok",
-                    "message": res["message"],
-                    "state": res["state"]
-                }))
+                await websocket.send_text(json.dumps(res))
 
             # ── AI Response only when there is a real user query ──
             if data.query and data.query.strip():
+                # Check for Action Keywords
+                action_res = await actions.execute(data.query, data.face_emotion or "Neutral")
+                
                 res = await generate_ai_response(
                     data.query, data.face_emotion  or "Neutral", compliance,
                     data.gesture       or "NONE", behavior_state, data.gaze_direction or "Center",
                     focus=data.focus_level, language=data.language or "en-US"
                 )
-                await websocket.send_text(json.dumps({
-                    "status": "ok",
-                    "message": res["message"],
-                    "state": res["state"]
-                }))
+                
+                # Merge action message if exists
+                final_msg = res["message"]
+                if action_res.get("message"):
+                    final_msg = f"{action_res['message']} \n\n{final_msg}"
+
+                # Final bundle
+                output = res.copy()
+                output["message"] = final_msg
+                # If the explicit action had a ritual, use it, otherwise use the one from res
+                if action_res.get("ritual"): output["ritual"] = action_res["ritual"]
+                if action_res.get("smart_action"): output["smart_action"] = action_res["smart_action"]
+
+                await websocket.send_text(json.dumps(output))
 
     except WebSocketDisconnect:
         log.info("🔌 Neural bridge disconnected (client side)")

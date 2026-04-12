@@ -56,6 +56,11 @@ class MemoryManager:
                 "total_queries": 0,
                 "total_encounters": 0,
                 "emotion_freq": {}
+            },
+            "active_state": {
+                "last_suggestion": None,
+                "suggestion_time": None,
+                "accepted_rituals": []
             }
         }
 
@@ -171,6 +176,23 @@ class MemoryManager:
         }
         
         return f"SESSION PATTERN: {patterns.get(dom, 'Consistent calm state.')}"
+
+    def set_suggestion(self, suggestion_type: str, data: Dict):
+        """Track the last suggested ritual/action for context-aware replies."""
+        self.data["active_state"]["last_suggestion"] = {
+            "type": suggestion_type,
+            "data": data,
+            "timestamp": datetime.datetime.utcnow().isoformat()
+        }
+        self.data["active_state"]["suggestion_time"] = datetime.datetime.utcnow().isoformat()
+        self._save()
+
+    def get_last_suggestion(self) -> Optional[Dict]:
+        return self.data["active_state"].get("last_suggestion")
+
+    def clear_suggestion(self):
+        self.data["active_state"]["last_suggestion"] = None
+        self._save()
 
     def increment_encounters(self):
         self.data["stats"]["total_encounters"] += 1

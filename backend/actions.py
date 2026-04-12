@@ -1,36 +1,50 @@
 import logging
 import datetime
 import random
+from use_cases import get_ritual, get_smart_action
 
 log = logging.getLogger("ORIEN.Actions")
 
 class ActionEngine:
     """
     Simulates real-world assistant capabilities.
-    In a full production version, these would call real APIs (Weather, Google Calendar, etc.)
+    Integrates 'Neural Rituals' and 'Smart Environment' logic for daily life use cases.
     """
     def __init__(self):
         pass
 
-    async def execute(self, query: str) -> str:
+    async def execute(self, query: str, emotion: str = "Neutral") -> dict:
         q = query.lower()
         
+        # ── System Utilities ──
         if "time" in q:
             now = datetime.datetime.now().strftime("%H:%M:%S")
-            return f"The current system time is precisely {now}."
+            return {"message": f"The current system time is {now}."}
             
         if "date" in q:
             today = datetime.datetime.now().strftime("%A, %B %d, %Y")
-            return f"Today's date is {today}."
-            
-        if "weather" in q:
-            temps = [22, 24, 18, 20, 26]
-            return f"Synchronizing with meteorological satellites... The local temperature is {random.choice(temps)}°C with clear visibility."
+            return {"message": f"Today's date is {today}."}
             
         if "status" in q or "health" in q:
-            return "I am operating normally. All systems are stable and aligned with your needs."
+            return {"message": "All neural clusters are stable and aligned."}
 
-        return ""
+        # ── Daily Life Use Case: Neural Rituals ──
+        if "ritual" in q or "suggest" in q or "what should i do" in q:
+            ritual = get_ritual(emotion)
+            return {
+                "message": f"I recommend a {ritual['task']}: {ritual['desc']}",
+                "ritual": ritual
+            }
+
+        # ── Real World Implementation: Smart Home Simulation ──
+        if "optimize" in q or "manage" in q or "environment" in q:
+            action = get_smart_action(emotion)
+            return {
+                "message": f"Environment Update: {action}",
+                "smart_action": action
+            }
+
+        return {"message": ""}
 
 # Global instance
 actions = ActionEngine()

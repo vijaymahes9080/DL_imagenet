@@ -159,7 +159,7 @@ class NeuralPredictor:
             log.warning(f"Behavior prediction fallback: {e}")
             return "Stable"
 
-    def _decode_frame(self, frame_b64: str, size: int = 128):
+    def _decode_frame(self, frame_b64: str, size: int = 96):
         try:
             if "," in frame_b64: frame_b64 = frame_b64.split(",")[1]
             img_bytes = base64.b64decode(frame_b64)
@@ -190,7 +190,7 @@ class NeuralPredictor:
 
     def predict_face_emotion(self, frame) -> dict:
         if not self.load_model("face"): return {"emotion":"Neutral", "confidence":0.0}
-        img = self._decode_frame(frame, 128) # Signal alignment
+        img = self._decode_frame(frame, 96) # Signal alignment
         if img is None: return {"emotion":"Neutral", "confidence":0.0}
         p = self._predict_core("face", img)[0]
         i = np.argmax(p)
@@ -198,7 +198,7 @@ class NeuralPredictor:
 
     def predict_eye_gaze(self, frame) -> dict:
         if not self.load_model("eye"): return {"gaze":"Center", "confidence":0.0}
-        img = self._decode_frame(frame, 128) # Signal alignment
+        img = self._decode_frame(frame, 96) # Signal alignment
         if img is None: return {"gaze":"Center", "confidence":0.0}
         res = self._predict_core("eye", img)
         p = res[0]
@@ -207,7 +207,7 @@ class NeuralPredictor:
 
     def predict_face_orl_identity(self, frame) -> dict:
         if not self.load_model("face_orl"): return {"subject":"Unknown", "confidence":0.0}
-        img = self._decode_frame(frame, 128) # Signal alignment
+        img = self._decode_frame(frame, 96) # Signal alignment
         if img is None: return {"subject":"Unknown", "confidence":0.0}
         res = self._predict_core("face_orl", img)
         p = res[0]
@@ -250,7 +250,7 @@ class NeuralPredictor:
             log.warning(f"Voice prediction error: {e}")
             return {"emotion": "Neutral", "confidence": 0.0}
 
-    def _decode_once(self, frame_b64: str, size: int = 128):
+    def _decode_once(self, frame_b64: str, size: int = 96):
         """Unified decoding to prevent redundant processing."""
         return self._decode_frame(frame_b64, size)
 
@@ -259,7 +259,7 @@ class NeuralPredictor:
         Parallel Ensemble Inference.
         Decodes once, runs all models concurrently.
         """
-        img = self._decode_once(frame_b64, 128)
+        img = self._decode_once(frame_b64, 96)
         if img is None: return {"emotion":"Neutral", "confidence":0.0, "votes": {}}
 
         # Identifier separation
@@ -303,11 +303,11 @@ class NeuralPredictor:
             raw = cv2.imdecode(np.frombuffer(img_bytes, np.uint8), cv2.IMREAD_COLOR)
             if raw is None: return {}
 
-            # Reverting to 128x128 to match baseline.
-            r128 = cv2.resize(raw, (128, 128), interpolation=cv2.INTER_CUBIC).astype('float32')
+            # Reverting to 96x96 to match model requirements.
+            r96 = cv2.resize(raw, (96, 96), interpolation=cv2.INTER_CUBIC).astype('float32')
             
             return {
-                "128": np.expand_dims(r128, axis=0)
+                "96": np.expand_dims(r96, axis=0)
             }
         except Exception as e:
             log.error(f"Critical Frame Decode Failure: {e}")
@@ -325,14 +325,14 @@ class NeuralPredictor:
         tensors = await asyncio.to_thread(self._decode_once, frame_b64)
         if not tensors: return {"error": "DECODE_FAILURE", "mode": "MINIMAL"}
 
-        t128 = tensors.get("128")
+        t96 = tensors.get("96")
 
         # 2. Execution Map
         tasks = {
-            "ensemble": self.predict_ensemble_optimized(t128),
-            "gaze":     self._run_model_async_direct("eye", t128),
-            "id":       self._run_model_async_direct("face_orl", t128),
-            "gesture":  self._run_model_async_direct("gesture", t128)
+            "ensemble": self.predict_ensemble_optimized(t96),
+            "gaze":     self._run_model_async_direct("eye", t96),
+            "id":       self._run_model_async_direct("face_orl", t96),
+            "gesture":  self._run_model_async_direct("gesture", t96)
         }
 
         # 3. Dynamic Concurrent Execution
@@ -384,7 +384,7 @@ class NeuralPredictor:
 
         return fused
 
-    async def predict_ensemble_optimized(self, t128) -> dict:
+    async def predict_ensemble_optimized(self, t96) -> dict:
         """Optimized ensemble using correctly scaled inputs for each member."""
         # Identifier separation
         modalities = ["face_alt", "emotion_master"]
@@ -392,8 +392,8 @@ class NeuralPredictor:
         results = []
         votes = {}
         
-        # ── Member 1: face_alt (128x128x3) ──
-        res_alt = await self._run_model_async_direct("face_alt", t128)
+        # ── Member 1: face_alt (96x96x3) ──
+        res_alt = await self._run_model_async_direct("face_alt", t96)
         if res_alt is not None:
             p = res_alt[0][:7]
             results.append(p)
@@ -402,8 +402,8 @@ class NeuralPredictor:
         # ── Member 2: emotion_master (32x32x1 Gray) ──
         if self.load_model("emotion_master"):
             try:
-                # Convert 128x128x3 to 32x32x1
-                img32 = cv2.resize(t128[0], (32, 32), interpolation=cv2.INTER_AREA)
+                # Convert 96x96x3 to 32x32x1
+                img32 = cv2.resize(t96[0], (32, 32), interpolation=cv2.INTER_AREA)
                 gray32 = cv2.cvtColor(img32.astype(np.uint8), cv2.COLOR_RGB2GRAY)
                 gray32 = np.expand_dims(gray32, axis=(0, -1)).astype('float32') # (1, 32, 32, 1)
                 
