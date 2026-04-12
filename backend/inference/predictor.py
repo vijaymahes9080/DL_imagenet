@@ -250,52 +250,11 @@ class NeuralPredictor:
             log.warning(f"Voice prediction error: {e}")
             return {"emotion": "Neutral", "confidence": 0.0}
 
-    def _decode_once(self, frame_b64: str, size: int = 96):
-        """Unified decoding to prevent redundant processing."""
-        return self._decode_frame(frame_b64, size)
-
-    async def predict_ensemble(self, frame_b64: str) -> dict:
-        """
-        Parallel Ensemble Inference.
-        Decodes once, runs all models concurrently.
-        """
-        img = self._decode_once(frame_b64, 96)
-        if img is None: return {"emotion":"Neutral", "confidence":0.0, "votes": {}}
-
-        # Identifier separation
-        # Only 'face_alt' and 'emotion_master' have FER features.
-        modalities = ["face_alt", "emotion_master"]
-        
-        # Trigger all predictions in parallel
-        tasks = [self._run_model_async(m, img) for m in modalities]
-        results = await asyncio.gather(*tasks)
-
-        rs = []
-        votes = {}
-        for i, res in enumerate(results):
-            if res is not None:
-                p = res[0]
-                if p.shape[0] >= 7:
-                    probs = p[:7]
-                    rs.append(probs)
-                    votes[modalities[i]] = self.EMOTION_CLASSES[np.argmax(probs)]
-        
-        if not rs: return {"emotion":"Neutral", "confidence":0.0, "votes": {}}
-        
-        mean_p = np.mean(rs, axis=0)
-        idx = int(np.argmax(mean_p))
-        return {
-            "type":       "EMOTION_UPDATE",
-            "emotion":    self.EMOTION_CLASSES[idx],
-            "confidence": float(mean_p[idx]),
-            "votes":      votes,
-            "scores":     {self.EMOTION_CLASSES[j]: float(mean_p[j]) for j in range(7)}
-        }
-
-    def _decode_once(self, frame_b64: str) -> Dict[str, np.ndarray]:
+    def _decode_once(self, frame_b64: str, size: int = 96) -> Dict[str, np.ndarray]:
         """
         Optimized Unified Decode.
-        Decodes the frame once and produces all required resolution tensors.
+        Decodes the frame once and produces required resolution tensors.
+        Using INTER_AREA for faster downsampling.
         """
         try:
             if "," in frame_b64: frame_b64 = frame_b64.split(",")[1]
@@ -303,15 +262,21 @@ class NeuralPredictor:
             raw = cv2.imdecode(np.frombuffer(img_bytes, np.uint8), cv2.IMREAD_COLOR)
             if raw is None: return {}
 
-            # Reverting to 96x96 to match model requirements.
-            r96 = cv2.resize(raw, (96, 96), interpolation=cv2.INTER_CUBIC).astype('float32')
+            # Faster downsampling interpolation
+            r96 = cv2.resize(raw, (size, size), interpolation=cv2.INTER_AREA).astype('float32')
             
             return {
-                "96": np.expand_dims(r96, axis=0)
+                str(size): np.expand_dims(r96, axis=0)
             }
         except Exception as e:
             log.error(f"Critical Frame Decode Failure: {e}")
             return {}
+
+    async def predict_ensemble(self, frame_b64: str) -> dict:
+        """Faster ensemble for API requests."""
+        tensors = self._decode_once(frame_b64, 96)
+        if not tensors: return {"emotion":"Neutral", "confidence":0.0, "votes": {}}
+        return await self.predict_ensemble_optimized(tensors["96"])
 
     async def predict_full_suite_parallel(self, frame_b64: str) -> dict:
         """

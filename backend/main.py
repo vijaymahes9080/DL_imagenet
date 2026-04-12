@@ -16,7 +16,7 @@ import base64
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request, File, UploadFile, Form
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.responses import JSONResponse, RedirectResponse, FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from dotenv import load_dotenv
@@ -779,9 +779,18 @@ async def server_error(req: Request, exc: Exception):
     return JSONResponse({"status": "error", "message": "Something went wrong. Try again."}, status_code=500)
 
 # ── Serve Frontend Static Files ─────────────────────────────────────────────
-# Mounts AFTER API routes so /ws/neural and /health are not overridden
-FRONTEND_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "frontend")
+FRONTEND_DIR = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "frontend"))
+
+@app.get("/")
+async def read_index():
+    """Explicitly serve the frontend index.html by default."""
+    index_path = os.path.join(FRONTEND_DIR, "index.html")
+    if os.path.exists(index_path):
+        return FileResponse(index_path)
+    return JSONResponse({"status": "error", "message": "Frontend index.html not found"}, status_code=404)
+
 if os.path.isdir(FRONTEND_DIR):
+    # Mount everything else (css, js, etc.) AFTER the root route
     app.mount("/", StaticFiles(directory=FRONTEND_DIR, html=True), name="frontend")
 
 # ── Entry Point ─────────────────────────────────────────────────────────────
