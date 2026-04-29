@@ -33,14 +33,14 @@ To achieve an unprecedented **Mastery State** by fusing **Appearance Features** 
 *   **Face Centricity Alignment**: 5-point affine transformation to normalize head tilt.
 *   **Balanced Augmentation**: Synthetic minority oversampling (SMOTE) at the feature level.
 
-#### 2.2 Neural Synergy Architecture
+#### 2.2 Neural Synergy Architecture (ResNet50 Based)
 ```python
-# Conceptual Synergy Layer
-def synergy_block(cnn_features, landmark_heatmaps):
-    # Apply spatial attention
-    attention = Conv2D(filters=1, kernel_size=3, activation='sigmoid')(landmark_heatmaps)
-    synergy = Multiply()([cnn_features, attention])
-    return synergy
+# Conceptual Synergy Layer (Standard ImageNet Backbone)
+def synergy_block(resnet50_features):
+    # Standard GAP + Dense Head
+    x = GlobalAveragePooling2D()(resnet50_features)
+    outputs = Dense(num_classes, activation='softmax')(x)
+    return outputs
 ```
 
 ---

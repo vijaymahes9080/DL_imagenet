@@ -6,12 +6,12 @@
 ### 🪐 1. Current Strategic Position: "Ultra-Fidelity"
 We have successfully transitioned from exploratory research to the **Mastery State Phase**. The objective is a rock-solid **98% Accuracy** on real-world datasets, optimized for zero-latency local execution.
 
-#### 🏗️ Architectural Core
+#### 🏗️ Architectural Core (ResNet50 Mastery)
 | Component | Specification | Rationale |
 | :--- | :--- | :--- |
-| **Backbone** | EfficientNet-B0 | Optimal parameter-to-performance ratio for edge devices. |
+| **Backbone** | ResNet50 | High-fidelity feature extraction with residual connections. |
 | **Resolution** | 224x224px (RGB) | Native ImageNet dimensions for maximum feature extraction. |
-| **Bottleneck** | Dense(256) + L2(0.01) | High-capacity latent space with strict regularization. |
+| **Head** | Enhanced Multi-Stage | High-capacity latent space with strict regularization. |
 | **Optimization** | Dual-Phase Fine-Tuning | Prevents catastrophic forgetting during head adaptation. |
 
 ---
@@ -32,14 +32,14 @@ We have successfully transitioned from exploratory research to the **Mastery Sta
 #### 🧪 Stage A: Latent Geometric Injection
 We are integrating **468 MediaPipe landmarks** directly into the CNN's latent space. By providing "hard geometric facts" (like eye-to-brow ratios), the model becomes immune to lighting variations that confuse pixel-based features.
 
-#### 🏗️ Stage B: Neural Ensemble Stacking
-A hybrid approach where **EfficientNet**'s spatial awareness is combined with a **ConvNeXt-Tiny**'s robust feature mapping. A meta-classifier stacks these predictions to resolve complex edge cases like "Micro-expressions."
+#### 🏗️ Stage B: Deep Feature Optimization
+We are applying **Global Context Awareness** to ResNet50's residual blocks to enhance spatial sensitivity without increasing parameter count.
 
 #### ⚡ Stage C: Quantization Aware Training (QAT)
 Simulating 8-bit precision during training to ensure no accuracy drop when deploying to Int8-only mobile hardware.
 
 #### 🧠 Stage D: Knowledge Distillation
-The current "Mastery Model" will serve as a **Teacher** to train a ultra-lightweight **MobileNetV3-Small** "Student," achieving high-fidelity performance on wearable devices.
+The current "Mastery Model" will serve as a **Teacher** to train an ultra-lightweight **ResNet50** "Student," achieving high-fidelity performance on wearable devices.
 
 ---
 
