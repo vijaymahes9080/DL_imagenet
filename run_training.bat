@@ -25,7 +25,8 @@ goto MENU
 
 :TRAINING
 echo.
-echo [!] STARTING HIGH-FIDELITY TRAINING...
+echo [!] STARTING HIGH-FIDELITY TRAINING (Memory Optimized)...
+SET TF_ENABLE_ONEDNN_OPTS=0
 python train_local.py
 pause
 goto MENU
